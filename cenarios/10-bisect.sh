@@ -31,7 +31,7 @@ TXT
 cenario_verificar() {
   local resposta esperado
   esperado="$(lab_get esperado)"
-  resposta="$(tr -d ' \r\n' <"$MISSION_DIR/resposta.txt" 2>/dev/null)"
+  resposta="$( (tr -d ' \r\n' <"$MISSION_DIR/resposta.txt") 2>/dev/null)"
   check "resposta.txt existe" test -f "$MISSION_DIR/resposta.txt"
   check "a resposta tem pelo menos 7 caracteres" test "${#resposta}" -ge 7
   check "o hash aponta o commit que quebrou" sh -c "case '$esperado' in '$resposta'*) [ -n '$resposta' ] ;; *) false ;; esac"

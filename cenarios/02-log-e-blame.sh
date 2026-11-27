@@ -33,13 +33,17 @@ TXT
 cenario_verificar() {
   local resposta esperado
   esperado="$(lab_get esperado)"
-  resposta="$(tr -d ' \r\n' <"$MISSION_DIR/resposta.txt" 2>/dev/null)"
+  resposta="$( (tr -d ' \r\n' <"$MISSION_DIR/resposta.txt") 2>/dev/null)"
   check "resposta.txt existe" test -f "$MISSION_DIR/resposta.txt"
   check "a resposta tem pelo menos 7 caracteres" test "${#resposta}" -ge 7
   check "o hash aponta o commit certo" sh -c "case '$esperado' in '$resposta'*) [ -n '$resposta' ] ;; *) false ;; esac"
   check "o histórico não mudou (9 commits)" same "$(lab_git rev-list --count main)" 9
 }
 
+# No Git Bash do Windows, um -L "/regex/" vira caminho do Windows (conversão do MSYS).
+# Por isso a solução acha o número da linha antes.
 cenario_solucao() {
-  git blame --porcelain -L "/^$(_alvo):/,+1" site/sobre.md | head -n 1 | cut -c1-12 >resposta.txt
+  local linha
+  linha="$(grep -n "^$(_alvo):" site/sobre.md | cut -d: -f1)"
+  git blame --porcelain -L "$linha,$linha" site/sobre.md | head -n 1 | cut -c1-12 >resposta.txt
 }
