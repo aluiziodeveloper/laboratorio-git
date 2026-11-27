@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# Laboratório de missões do curso "Git e GitHub na Era da IA".
+# Escrito para bash 3.2 (macOS) ou mais novo. Testado com Git 2.34, 2.49 e 2.56.
+set -u
+
+LAB_HOME="$(cd "$(dirname "$0")" && pwd)"
+MISSION_DIR="${LAB_MISSION_DIR:-$LAB_HOME/missao}"
+LAB_CLOCK=0
+LAB_FAILS=0
+
+die() { printf '%s\n' "$*" >&2; exit 2; }
+
+usage() {
+  cat <<'TXT'
+Uso:
+  ./lab listar                     lista os cenários
+  ./lab cenario <nome> [variante]  monta o cenário na pasta missao/
+  ./lab missao                     mostra de novo o enunciado
+  ./lab verificar                  confere a sua solução
+TXT
+}
+
+# ---------- ferramentas dos cenários ----------
+lab_git() { git -C "$MISSION_DIR" -c commit.gpgsign=false -c tag.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
+
+lab_commit() { # mensagem [autor]
+  LAB_CLOCK=$((LAB_CLOCK + 1))
+  local when="$((1767261600 + LAB_CLOCK * 60)) +0000"
+  if [ $# -ge 2 ]; then
+    GIT_AUTHOR_DATE="$when" GIT_COMMITTER_DATE="$when" lab_git commit -q --author="$2" -m "$1"
+  else
+    GIT_AUTHOR_DATE="$when" GIT_COMMITTER_DATE="$when" lab_git commit -q -m "$1"
+  fi
+}
+
+lab_write() { # caminho linha...
+  local path="$1"
+  shift
+  mkdir -p "$(dirname "$MISSION_DIR/$path")"
+  printf '%s\n' "$@" >"$MISSION_DIR/$path"
+}
+
+lab_set() { git config -f "$MISSION_DIR/.git/lab/estado" "lab.$1" "$2"; }
+lab_get() { git config -f "$MISSION_DIR/.git/lab/estado" "lab.$1"; }
+lab_rev() { lab_git rev-parse -q --verify "$1^{commit}" 2>/dev/null; }
+
+lab_init_repo() {
+  rm -rf "$MISSION_DIR"
+  mkdir -p "$MISSION_DIR"
+  git init -q "$MISSION_DIR"
+  lab_git symbolic-ref HEAD refs/heads/main
+  lab_git config core.autocrlf false
+  mkdir -p "$MISSION_DIR/.git/lab"
+}
+
+# Roda a solução de referência numa cópia descartável e devolve a árvore de <ref>.
+lab_expected_tree() { # ref
+  local tmp
+  tmp="$(mktemp -d)"
+  cp -R "$MISSION_DIR" "$tmp/copia"
+  (
+    MISSION_DIR="$tmp/copia"
+    git -C "$MISSION_DIR" config commit.gpgsign false
+    git -C "$MISSION_DIR" config core.hooksPath /dev/null
+    cd "$MISSION_DIR" && cenario_solucao >/dev/null 2>&1
+    git -C "$MISSION_DIR" rev-parse "$1^{tree}"
+  )
+  rm -rf "$tmp"
+}
+
+ok() { printf '  \342\234\224 %s\n' "$1"; }
+fail() {
+  printf '  \342\234\230 %s\n' "$1"
+  LAB_FAILS=$((LAB_FAILS + 1))
+}
+check() { # descrição comando...
+  local desc="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then ok "$desc"; else fail "$desc"; fi
+}
+same() { [ "$1" = "$2" ]; }
+
+# ---------- comandos ----------
+scenario_file() {
+  local f
+  for f in "$LAB_HOME"/cenarios/*-"$1".sh; do
+    [ -f "$f" ] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 1
+}
+
+load_scenario() {
+  local file
+  file="$(scenario_file "$1")" || die "Cenário desconhecido: $1 (veja ./lab listar)"
+  # shellcheck source=/dev/null
+  . "$file"
+}
+
+cmd_listar() {
+  local f name
+  for f in "$LAB_HOME"/cenarios/*.sh; do
+    name="$(basename "$f" .sh)"
+    name="${name#*-}"
+    (. "$f" && printf '  %-22s %s\n' "$name" "$(cenario_titulo)")
+  done
+}
+
+cmd_cenario() {
+  [ $# -ge 1 ] || die "Informe o cenário: ./lab cenario <nome>"
+  local name="$1" variant="${2:-$((RANDOM % 3 + 1))}"
+  case "$variant" in 1 | 2 | 3) ;; *) die "Variante deve ser 1, 2 ou 3" ;; esac
+  load_scenario "$name"
+  LAB_VARIANT="$variant"
+  export GIT_AUTHOR_NAME="Lab do Curso" GIT_AUTHOR_EMAIL="lab@exemplo.invalid"
+  export GIT_COMMITTER_NAME="Lab do Curso" GIT_COMMITTER_EMAIL="lab@exemplo.invalid"
+  lab_init_repo
+  (set -e; cenario_gerar) || die "Falha ao montar o cenário $name"
+  unset GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+  lab_set nome "$name"
+  lab_set variante "$variant"
+  printf 'Cenário "%s" (variante %s) montado em %s\n\n' "$name" "$variant" "$MISSION_DIR"
+  cenario_missao
+}
+
+current_scenario() {
+  [ -f "$MISSION_DIR/.git/lab/estado" ] || die "Nenhum cenário montado. Rode ./lab cenario <nome>"
+  load_scenario "$(lab_get nome)"
+  LAB_VARIANT="$(lab_get variante)"
+}
+
+cmd_missao() {
+  current_scenario
+  cenario_missao
+}
+
+cmd_verificar() {
+  current_scenario
+  printf 'Verificando "%s" (variante %s)\n' "$(lab_get nome)" "$LAB_VARIANT"
+  cenario_verificar
+  if [ "$LAB_FAILS" -eq 0 ]; then
+    printf '\nMissão cumprida!\n'
+    return 0
+  fi
+  printf '\nAinda não: %s item(ns) a acertar.\n' "$LAB_FAILS"
+  return 1
+}
+
+[ $# -ge 1 ] || { usage; exit 2; }
+command="$1"
+shift
+case "$command" in
+  listar) cmd_listar ;;
+  cenario) cmd_cenario "$@" ;;
+  missao) cmd_missao ;;
+  verificar) cmd_verificar ;;
+  -h | --help | ajuda) usage ;;
+  *) usage; exit 2 ;;
+esac

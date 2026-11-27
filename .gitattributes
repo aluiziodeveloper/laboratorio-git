@@ -1,0 +1,2 @@
+# Os scripts rodam no bash: LF em todo sistema, inclusive no Windows.
+* text=auto eol=lf
