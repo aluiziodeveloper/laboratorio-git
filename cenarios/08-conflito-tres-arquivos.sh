@@ -18,12 +18,14 @@ cenario_gerar() {
   lab_write cores.css ":root { --destaque: teal; }"
   lab_write menu.html "<nav>Início | Projetos</nav>"
   lab_write titulo.txt "Portfólio Vivo"
-  lab_git commit -q -am "feat: refresh the visual identity"
+  lab_git add .
+  lab_commit "feat: refresh the visual identity"
   lab_git switch -q main
   lab_write cores.css ":root { --destaque: orange; }"
   lab_write menu.html "<nav>Home</nav>"
   lab_write titulo.txt "Meu Portfólio"
-  lab_git commit -q -am "feat: adjust colors, menu and title"
+  lab_git add .
+  lab_commit "feat: adjust colors, menu and title"
   lab_set main "$(lab_rev main)"
   lab_set feature "$(lab_rev feature/visual)"
   lab_set arvore "$(lab_expected_tree HEAD)"

@@ -14,7 +14,8 @@ cenario_gerar() {
   done
   if [ "$LAB_VARIANT" = 3 ]; then
     lab_write README.md "# Portfólio Vivo" "Agora com projetos."
-    lab_git commit -q -am "docs: mention the projects"
+    lab_git add README.md
+    lab_commit_entre "docs: mention the projects"
   fi
   lab_git switch -q main
   lab_write rodape.html "<footer>2026</footer>"
@@ -22,7 +23,8 @@ cenario_gerar() {
   lab_commit "feat: add the footer"
   if [ "$LAB_VARIANT" != 1 ]; then
     lab_write README.md "# Portfólio Vivo" "Site pessoal."
-    lab_git commit -q -am "docs: describe the site"
+    lab_git add README.md
+    lab_commit "docs: describe the site"
   fi
   lab_set main "$(lab_rev main)"
   lab_set mensagens "$(lab_git log --reverse --format=%s main..feature/projetos | tr '\n' '|')"

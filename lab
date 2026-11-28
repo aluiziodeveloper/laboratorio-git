@@ -33,6 +33,11 @@ lab_commit() { # mensagem [autor]
   fi
 }
 
+lab_commit_entre() { # mensagem: commit 30 s depois do último, sem avançar o relógio (as datas seguintes não mudam)
+  local when="$((1767261600 + LAB_CLOCK * 60 + 30)) +0000"
+  GIT_AUTHOR_DATE="$when" GIT_COMMITTER_DATE="$when" lab_git commit -q -m "$1"
+}
+
 lab_write() { # caminho linha...
   local path="$1"
   shift
